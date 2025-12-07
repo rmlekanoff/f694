@@ -7,13 +7,12 @@
 # envirnoments are generally set up with one program per environment, but could be set up in one environment
 
 
-
 Download the files from NCBI with known SRR number, using prefetch in sratoolkit.
 sratoolkit must be configured, and then can be used to download SRR files from NCBI. convert RNAseq data from .SRR to .fastq.gz.
 
 ```bash
 prefetch SRR18446124 # download SRR file
-srr_fastq_gz.sh      # script to convert
+sbatch srr_fastq_gz.sh      # script to convert
 ```
 
 srr_fastq_gz.sh 
@@ -35,7 +34,7 @@ fastq-dump --split-files --gzip --outdir /home/rmlekanoff/final_proj /home/rmlek
 run_fastqc.sh to run quality checks on the raw fastq.gz files
 remember to activate environment: 
 conda activate fastqc_env
-run_fastqc.sh
+sbatch run_fastqc.sh
 ```bash
 #!/bin/bash
 #SBATCH --partition=t1small
@@ -59,7 +58,7 @@ BBDuk installation steps (https://archive.jgi.doe.gov/data-and-tools/software-to
 test install: /home/rmlekanoff/bbmap/stats.sh in=bbmap/resources/phix174_ill.ref.fa.gz
 
 ```bash
-bbduk_trim.sh
+sbatch bbduk_trim.sh
 ```
 
 ```bash
@@ -80,7 +79,7 @@ bbduk.sh in1=/home/rmlekanoff/final_proj/SRR18446124_1.fastq.gz in2=/home/rmleka
 
 after trimming, use fastqc on the clean SRR18446124 .fastq.gz files
 ```bash
-clean_fastq.sh
+sbatch clean_fastq.sh
 ```
 
 ```bash
@@ -105,7 +104,7 @@ de novo assembly of transcriptome with Trinity
 
 ```bash
 conda activate trinity
-trinity_clean.sh
+sbatch trinity_clean.sh
 ```
  
 ```bash
@@ -128,7 +127,7 @@ the reference genome needs to be indexed. Downlad the whole genome from NCBI. Ru
 
 ```bash
 conda activate hisat2
-reference.sh
+sbatch reference.sh
 ```
 
 ```bash
@@ -146,7 +145,7 @@ hisat2-build /center1/FISH694/rmlekanoff/man-clam/ncbi_dataset/data/GCF_02657151
 assemble the Leukoma RNAseq reads to the indexed Manila clam reference genome. This still takes place in the hisat2 environment.
 
 ```bash
-assemble.sh
+sbatch assemble.sh
 ```
 
 ```bash
@@ -164,7 +163,7 @@ index the trinity made de novo assembly with hisat2-build.
 
 ```bash
 conda activate trinity
-trinity_present.sh
+sbatch trinity_present.sh
 ```
 
 ```bash
@@ -200,7 +199,7 @@ the output of hisat2 is in .sam format, which is not human readable or ready to 
 
 ```bash
 conda activate samtools_env
-bamsam.sh
+sbatch bamsam.sh
 ```
 
 ```bash
@@ -237,7 +236,7 @@ No annotated genome for Leukoma, currently, so this step is only done on the Leu
 
 ```bash
 conda activate qualimap
-qualimap.sh
+sbatch qualimap.sh
 ```
 
 ```bash
