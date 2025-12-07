@@ -8,17 +8,14 @@
 
 
 
-# Download the files from NCBI with known SRR number, using prefetch in sratoolkit.
-# sratoolkit must be configured, and then can be used to download SRR files from NCBI.
-In the terminal:
+Download the files from NCBI with known SRR number, using prefetch in sratoolkit.
+sratoolkit must be configured, and then can be used to download SRR files from NCBI. convert RNAseq data from .SRR to .fastq.gz.
+
 ```bash
-
-prefetch SRR18446124
-
+prefetch SRR18446124 # download SRR file
+srr_fastq_gz.sh      # script to convert
 ```
 
-
-# convert RNAseq data from .SRR to .fastq.gz with:
 srr_fastq_gz.sh 
 ```bash
 #!/bin/bash
@@ -35,8 +32,8 @@ fastq-dump --split-files --gzip --outdir /home/rmlekanoff/final_proj /home/rmlek
 # fastq-dump takes the raw RNAseq data in SRR format and separates them to forward and reverse reads and outputs those paired read files into the specified directory.
 ```
 
-# run_fastqc.sh to run quality checks on the raw fastq.gz files
-# remember to activate environment: 
+run_fastqc.sh to run quality checks on the raw fastq.gz files
+remember to activate environment: 
 conda activate fastqc_env
 run_fastqc.sh
 ```bash
@@ -57,13 +54,14 @@ fastqc "${INPUT_DIR}/SRR18446124_2.fastq.gz" -o "$OUTPUT_DIR"
 # download .html files to local machine to view in your browser
 ```
 
-## Trimming the reads with BBDuk
+Trimming the reads with BBDuk
+BBDuk installation steps (https://archive.jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/installation-guide)
+test install: /home/rmlekanoff/bbmap/stats.sh in=bbmap/resources/phix174_ill.ref.fa.gz
 
-# BBDuk installation steps (https://archive.jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/installation-guide)
-
-# test install: /home/rmlekanoff/bbmap/stats.sh in=bbmap/resources/phix174_ill.ref.fa.gz
-
+```bash
 bbduk_trim.sh
+```
+
 ```bash
 #!/bin/bash
 
@@ -80,9 +78,11 @@ bbduk.sh in1=/home/rmlekanoff/final_proj/SRR18446124_1.fastq.gz in2=/home/rmleka
 
 ```
 
-# after trimming, use fastqc on the clean SRR18446124 .fastq.gz files
-
+after trimming, use fastqc on the clean SRR18446124 .fastq.gz files
+```bash
 clean_fastq.sh
+```
+
 ```bash
 #!/bin/bash
 
@@ -101,10 +101,13 @@ fastqc "${INPUT_DIR}/clean_SRR18446124_2.fastq.gz" -o "$OUTPUT_DIR"
 ```
 
 
-# de novo assembly of transcriptome
-conda activate trinity
+de novo assembly of transcriptome with Trinity
 
-trinity_clean.sh 
+```bash
+conda activate trinity
+trinity_clean.sh
+```
+ 
 ```bash
 #!/bin/bash
 #SBATCH --partition=t1standard
@@ -121,15 +124,13 @@ Trinity --seqType fq --max_memory 150G --left /home/rmlekanoff/final_proj/clean_
 # memory usage for Trinity is recommended at 1 Gb Ram per 100,000 reads. This dataset has ~150,000,000 reads. Earlier run attempts did not take this into account, meaning the individual steps in Trinity completed, but the final assembly of the de novo transcriptome did not happen. In this scenario, the logs of the Trinity run read that all individual steps were completely successfully (even with a happy litle :-) included). But the final assembly is not compiled and there is no indication of this except for missing the final 'Trinity.fasta' file needed for downstream analyses. Fortunately Trinity will pick up where it left off on the last run, so the analysis can continue after properly optimizing the script!
 ```
 
+the reference genome needs to be indexed. Downlad the whole genome from NCBI. Run hisat2-build to generate indexed genome files.
+
 ```bash
-conda create --name hisat2
 conda activate hisat2
-mamba install hisat2
+reference.sh
 ```
 
-# the reference genome needs to be indexed. Downlad the whole genome from NCBI. Run hisat2-build to generate indexed genome files.
-
-reference.sh 
 ```bash
 #!/bin/bash
 
@@ -139,11 +140,15 @@ reference.sh
 
 hisat2-build /center1/FISH694/rmlekanoff/man-clam/ncbi_dataset/data/GCF_026571515.1/GCF_026571515.1_ASM2657151v2_genomic.fna /home/rmlekanoff/final_proj/index/manila-clam
 
+# index the reference genome
 ```
 
-# assemble the Leukoma RNAseq reads to the indexed reference genome. This still takes place in the hisat2 environment.
+assemble the Leukoma RNAseq reads to the indexed Manila clam reference genome. This still takes place in the hisat2 environment.
 
+```bash
 assemble.sh
+```
+
 ```bash
 #!/bin/bash
 
@@ -155,11 +160,49 @@ hisat2 -x /home/rmlekanoff/final_proj/index/manila-clam -1 /home/rmlekanoff/fina
  
 ```
 
-# the output of hisat2 is in .sam format, which is not human readable or ready to use in downstream analyses. Convert the .sam to .bam using samtools. 
+index the trinity made de novo assembly with hisat2-build.
 
+```bash
+conda activate trinity
+trinity_present.sh
+```
+
+```bash
+#!/bin/bash
+
+#SBATCH --partition=t1standard
+#SBATCH --nodes=4
+#SBATCH --ntasks-per-node=24
+#SBATCH --mail-user=rmlekanoff@alaska.edu
+#SBATCH --mail-type=BEGIN
+#SBATCH --mail-type=END
+#SBATCH --mail-type=FAIL
+
+hisat2-build -f /center1/FISH694/rmlekanoff/trinity_out_clean_24/Trinity.fasta /center1/FISH694/rmlekanoff/trinity_index/leukoma_rnaseq
+
+# -f argument indicates the reference input is a fasta file.
+```
+
+align the original RNAseq reads to the indexed trinity de novo transcriptome
+map_trinity.sh
+```bash
+#!/bin/bash
+
+#SBATCH --partition=t1small
+#SBATCH --ntasks=24
+#SBATCH --tasks-per-node=24
+
+hisat2 -x /center1/FISH694/rmlekanoff/trinity_index/leukoma_rnaseq -1 /home/rmlekanoff/final_proj/clean_SRR18446124_1.fastq.gz -2 /home/rmlekanoff/final_proj/clean_SRR18446124_2.fastq.gz -S /center1/FISH694/rmlekanoff/trinity_hisat2_out.sam
+
+```
+
+the output of hisat2 is in .sam format, which is not human readable or ready to use in downstream analyses. Convert the .sam to .bam using samtools. 
+
+```bash
 conda activate samtools_env
-
 bamsam.sh
+```
+
 ```bash
 #!/bin/bash
 
@@ -168,41 +211,33 @@ bamsam.sh
 #SBATCH --tasks-per-node=12
 
 samtools view -b -S /center1/FISH694/rmlekanoff/hisat2_out.sam > /home/rmlekanoff/final_proj/hisat2_out.bam
+
+samtools view -b -S /center1/FISH694/rmlekanoff/trinity_hisat2_out.sam > /home/rmlekanoff/final_proj/trinity_hisat2_out.bam
+
 ```
 
-conda activate bowtie2
-# still having problems getting the fully assembled Trinity transcriptome...but this step would look something like this: 
-
-# quality checks for de novo assembly
-```bash
-#!/bin/bash
-
-#SBATCH --partition=t1small
-#SBATCH --ntasks=12
-#SBATCH --tasks-per-node=12
-
-bowtie2-build -f /center1/FISH694/rmlekanoff/trinity_out_clean_24/Trinity.fasta leukoma_rnaseq
-
-# -f argument indicates the reference input is a fasta file.
-```
-
-
+print stats from flagstat analysis on the Leukoma reads mapped to both the Manila clam reference genome and the de novo assembly and save the outputs to a txt file 
 conda activate samtool_env
 samstats.sh
-# print stats from flagstat analysis on the Leukoma reads mapped to Manila clam and save to a txt file 
 ```bash
 #!/bin/bash
 
 #SBATCH --partition=t1small
-#SBATCH --ntasks=1
+#SBATCH --ntasks=2
 #SBATCH --tasks-per-node=12
 
 samtools flagstat hisat2_out.bam > hisat2_out_stats.txt
+
+samtools flagstat /center1/FISH694/rmlekanoff/trinity_hisat2_out.bam > trinity_hisat2_out_stats.txt
+
 ```
 
-Some additional qc with qualimap
+Some additional qc with qualimap on the Manila clam reference genome assembly.
+No annotated genome for Leukoma, currently, so this step is only done on the Leukoma RNAseq data mapped to the Manila clam reference.
+
 ```bash
 conda activate qualimap
+qualimap.sh
 ```
 
 ```bash
